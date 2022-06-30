@@ -3,7 +3,8 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"os"
+
+	//"os"
 	"strings"
 
 	"github.com/gocolly/colly"
@@ -18,11 +19,12 @@ type Course struct {
 	URL         string
 	Language    string
 	Commitment  string
-	HowToPass   string
-	Rating      string
+	//HowToPass   string
+	Rating    string
+	Thumbnail string
 }
 
-func search(dom ...string) {
+func searchoy(dom ...string) []byte {
 	//var dom = []string{"", ""}
 	// Instantiate default collector
 	c := colly.NewCollector(
@@ -89,7 +91,7 @@ func search(dom ...string) {
 					case "Commitment":
 						course.Commitment = el.ChildText("td:nth-child(2)")
 					case "How To Pass":
-						course.HowToPass = el.ChildText("td:nth-child(2)")
+						course.Thumbnail = el.ChildText("td:nth-child(2)")
 					case "User Ratings":
 						course.Rating = el.ChildText("td:nth-child(2) div:nth-of-type(2)")
 					}
@@ -98,8 +100,10 @@ func search(dom ...string) {
 		})
 	// Start scraping on http://coursera.com/browse
 	c.Visit("https://coursera.org/browse")
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", " ")
+	//enc := json.NewEncoder(os.Stdout)
+	//enc.SetIndent("", " ")
 	// Dump json to the standard output
-	enc.Encode(courses)
+	//enc.Encode(courses)
+	b, _ := json.Marshal(courses)
+	return b
 }

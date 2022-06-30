@@ -107,7 +107,8 @@ func get(w http.ResponseWriter, r *http.Request) {
 func getSearch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	preflight(w, r)
-
+	resp := searchoy()
+	w.Write(resp)
 }
 
 func post(w http.ResponseWriter, r *http.Request) {
