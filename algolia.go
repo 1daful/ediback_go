@@ -11,20 +11,26 @@ import (
 	"github.com/algolia/algoliasearch-client-go/v3/algolia/search"
 )
 
-func addIndex(url string, name string) {
+type Config struct {
+	AppId  string `json:"appId"`
+	Apikey string `json:"apikey"`
+}
+
+func getConfig() Config {
 	jsonFile, err := os.Open("config.json")
+	if err != nil {
+		log.Println(err)
+	}
 	defer jsonFile.Close()
 	byte, err := ioutil.ReadAll(jsonFile)
 
-	type Config struct {
-		AppId  string `json:"appId"`
-		Apikey string `json:"apikey"`
-	}
-
 	var config Config
 	json.Unmarshal(byte, &config)
-
-	client := search.NewClient("JFUHLV2WO0", "b0a6da35268c835cf1e2853e3588e10a")
+	return config
+}
+func addIndex(url string, name string) {
+	config := getConfig()
+	client := search.NewClient(config.AppId, config.Apikey)
 	index := client.InitIndex(name)
 
 	getRes, err := http.Get(url)
@@ -48,26 +54,27 @@ func addIndex(url string, name string) {
 	log.Println(res)
 }
 
-func configIndex() {
-	client := search.NewClient("JFUHLV2WO0", "b0a6da35268c835cf1e2853e3588e10a")
-	index := client.InitIndex("demo_media")
+func configIndex(name string) {
+	config := getConfig()
+	client := search.NewClient(config.AppId, config.Apikey)
+	index := client.InitIndex(name)
 
 	res, err := index.SetSettings(search.Settings{
 		// Select the attributes you want to search in
 		SearchableAttributes: opt.SearchableAttributes(
-			"post_title", "author_name", "categories", "content",
+			"title", "authors", "genre", "description", "tags", "isbn",
 		),
 		// Define business metrics for ranking and sorting
 		CustomRanking: opt.CustomRanking(
-			"desc(post_date)", "desc(record_index)",
+			/*post_date*/ "desc(created)", "desc(record_index)",
 		),
 		// Set up some attributes to filter results on
 		AttributesForFaceting: opt.AttributesForFaceting(
-			"categories",
+			"genre", "tags", "created",
 		),
 		// Define the attribute we want to distinct on
 		AttributeForDistinct: opt.AttributeForDistinct(
-			"post_id",
+			"id",
 		),
 	})
 	// error handling
