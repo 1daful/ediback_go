@@ -250,5 +250,5 @@ func main() {
 	handler := cors.AllowAll().Handler(r)
 	//api.HandleFunc("/user/{userID}/comment/{commentID}", params).Methods(http.MethodGet)
 
-	log.Fatal(http.ListenAndServe(":8081", handler))
+	log.Fatal(http.ListenAndServe(":2000", handler))
 }
