@@ -80,9 +80,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -97,11 +97,28 @@ import (
 
 func get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 	preflight(w, r)
-	url := params(w, r)
-	resp, _ := run("GET", url.String())
-	w.Write(resp)
+	//url := params(w, r)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	//respByte, _ := run("GET", url.String(), nil)
+	respByte, _ := run(r)
+	w.Write(respByte)
+	w.WriteHeader(http.StatusOK)
+}
+
+func toGet(w http.ResponseWriter, r *http.Request) ([]byte, interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	preflight(w, r)
+	//url := params(w, r)
+	respByte, respInterface := run(r)
+	w.Write(respByte)
+	w.WriteHeader(http.StatusOK)
+	return respByte, respInterface
 }
 
 func getSearch(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +131,44 @@ func getSearch(w http.ResponseWriter, r *http.Request) {
 func post(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(`{"message": "post called"}`))
+	preflight(w, r)
+	//url := params(w, r)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	//var data map[string]interface{}
+	//err := json.NewDecoder(r.Body).Decode(&data)
+	/*if err != nil {
+	    http.Error(w, err.Error(), http.StatusBadRequest)
+	    return
+	}*/
+	//respByte, _ := run("POST", url.String(), r.Body)
+	respByte, _ := run(r)
+	w.Write(respByte)
+	// Send a response back to the client
+	w.WriteHeader(http.StatusOK)
+}
+
+func toPost(w http.ResponseWriter, r *http.Request) ([]byte, interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	preflight(w, r)
+	//url := params(w, r)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return nil, nil
+	}
+	req, err := makeRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil, nil
+	}
+	respByte, respInterface := run(req)
+	w.Write(respByte)
+	// Send a response back to the client
+	w.WriteHeader(http.StatusOK)
+	return respByte, respInterface
 }
 
 func put(w http.ResponseWriter, r *http.Request) {
@@ -138,36 +192,36 @@ func preflight(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func params(w http.ResponseWriter, r *http.Request) url.URL {
-	//pathParams := mux.Vars(r)
+/*func params(w http.ResponseWriter, r *http.Request) url.URL {
+//pathParams := mux.Vars(r)
 
-	/*userID := -1
-	  var err error
-	  /*for k, v := range pathParams {
-	      mp := make(map[string]interface{})
-	      mp[k] = v
-	  }*/
+/*userID := -1
+  var err error
+  /*for k, v := range pathParams {
+      mp := make(map[string]interface{})
+      mp[k] = v
+  }*/
 
-	/*if val, ok := pathParams["baseUrl"]; ok {
-	    userID, err = strconv.Atoi(val)
-	    if err != nil {
-	        w.WriteHeader(http.StatusInternalServerError)
-	        w.Write([]byte(`{"message": "need a base url"}`))
-	        return
-	    }
-	}*/
+/*if val, ok := pathParams["baseUrl"]; ok {
+    userID, err = strconv.Atoi(val)
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        w.Write([]byte(`{"message": "need a base url"}`))
+        return
+    }
+}*/
 
-	/*commentID := -1
-	  if val, ok := pathParams["commentID"]; ok {
-	      commentID, err = strconv.Atoi(val)
-	      if err != nil {
-	          w.WriteHeader(http.StatusInternalServerError)
-	          w.Write([]byte(`{"message": "need a number"}`))
-	          return
-	      }
-	  }*/
+/*commentID := -1
+  if val, ok := pathParams["commentID"]; ok {
+      commentID, err = strconv.Atoi(val)
+      if err != nil {
+          w.WriteHeader(http.StatusInternalServerError)
+          w.Write([]byte(`{"message": "need a number"}`))
+          return
+      }
+  }*/
 
-	query := r.URL.Query()
+/*query := r.URL.Query()
 	//location := query.Get("location")
 	baseUrl := query.Get("baseUrl")
 	query.Del("baseUrl")
@@ -178,10 +232,10 @@ func params(w http.ResponseWriter, r *http.Request) url.URL {
 	u.RawQuery = query.Encode()
 	return *u
 	//w.Write([]byte(fmt.Sprintf(`{"userID": %d, "commentID": %d, "location": "%s" }`, userID, commentID, location)))
-}
+}*/
 
-func run(method string, url string) ([]byte, interface{}) {
-	type Response struct{}
+func run(r *http.Request) ([]byte, interface{}) {
+	//type Response struct{}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxConnsPerHost = 100
 	transport.MaxIdleConns = 100
@@ -190,34 +244,32 @@ func run(method string, url string) ([]byte, interface{}) {
 		Timeout:   30 * time.Second,
 		Transport: transport,
 	}
-	req, err := http.NewRequest(method, url, nil)
+	/*req, err := http.NewRequest(method, url, data)
 
 	if err != nil {
 		fmt.Print(err.Error())
 		log.Println(err)
-	}
-
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Content-Type", "application/json")
-	/*reqBytes, err := ioutil.ReadAll(req.Body)
-	if (err != nil) {
-		log.Fatal(err)
 	}*/
 
-	resp, err := client.Do(req)
+	r.Header.Add("Accept", "application/json")
+	r.Header.Add("Content-Type", "application/json")
+	//reqBytes, err := ioutil.ReadAll(req.Body)
+	//if (err != nil) {
+	//	log.Fatal(err)
+	//}
+
+	resp, err := client.Do(r)
 	if err != nil {
 		log.Println(err)
 	}
 
 	defer resp.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	var responseObject interface{}
+	err = json.NewDecoder(resp.Body).Decode(&responseObject)
 	if err != nil {
 		log.Println(err)
 	}
-	type Res struct {
-	}
-	var responseObject interface{}
-	json.Unmarshal(bodyBytes, &responseObject)
+	//json.Unmarshal(bodyBytes, &responseObject)
 	/*mai := make(map[string]interface{})
 	fmt.Println(["e"])*/
 	//for k, v := range responseObject {
@@ -226,8 +278,90 @@ func run(method string, url string) ([]byte, interface{}) {
 		keys = append(keys, k2)
 
 	}*/
-	b, _ := json.Marshal(responseObject)
+	b, err := json.Marshal(responseObject)
+	if err != nil {
+		log.Println(err)
+	}
 	return b, responseObject
+}
+
+/*func run(method string, url string, data io.Reader) ([]byte, interface{}) {
+	//type Response struct{}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxConnsPerHost = 100
+	transport.MaxIdleConns = 100
+	transport.MaxIdleConnsPerHost = 100
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+	req, err := http.NewRequest(method, url, data)
+
+	if err != nil {
+		fmt.Print(err.Error())
+		log.Println(err)
+	}
+
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+	//reqBytes, err := ioutil.ReadAll(req.Body)
+	//if (err != nil) {
+	//	log.Fatal(err)
+	//}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+	}
+
+	defer resp.Body.Close()
+	var responseObject interface{}
+	err = json.NewDecoder(resp.Body).Decode(&responseObject)
+	if err != nil {
+		log.Println(err)
+	}
+	//json.Unmarshal(bodyBytes, &responseObject)
+
+	b, err := json.Marshal(responseObject)
+	if err != nil{
+		log.Println(err)
+	}
+	return b, responseObject
+}*/
+
+func toRun(r *http.Request) {
+	//type Response struct{}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxConnsPerHost = 100
+	transport.MaxIdleConns = 100
+	transport.MaxIdleConnsPerHost = 100
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+
+	r.Header.Add("Accept", "application/json")
+	r.Header.Add("Content-Type", "application/json")
+	/*reqBytes, err := ioutil.ReadAll(req.Body)
+	if (err != nil) {
+		log.Fatal(err)
+	}*/
+
+	resp, err := client.Do(r)
+	if err != nil {
+		log.Println(err)
+	}
+
+	defer resp.Body.Close()
+	var responseObject interface{}
+	err = json.NewDecoder(resp.Body).Decode(&responseObject)
+	if err != nil {
+		log.Println(err)
+	}
+	_, err = json.Marshal(responseObject)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 /*func setParam(w http.ResponseWriter, r *http.Request) {
@@ -235,14 +369,58 @@ func run(method string, url string) ([]byte, interface{}) {
     g := params.Get("params")
 }*/
 
+func makeRequest(r *http.Request) (*http.Request, error) {
+	type Request struct {
+		url    string
+		config map[string]string
+		data   map[string]interface{}
+	}
+	var req Request
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, err
+	}
+	u, err := url.Parse(req.url)
+	if err != nil {
+		return nil, err
+	}
+	q := u.Query()
+	for key, value := range req.config {
+		q.Set(key, value)
+	}
+	u.RawQuery = q.Encode()
+
+	// Create the HTTP request with optional body
+	var body io.Reader
+	reqMethod := http.MethodGet
+	dataBytes, err := json.Marshal(req.data)
+	if err != nil {
+		return nil, err
+	}
+	if req.data != nil {
+		body = bytes.NewBuffer(dataBytes)
+		reqMethod = http.MethodPost
+	}
+
+	request, err := http.NewRequest(reqMethod, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set appropriate headers (e.g., Content-Type)
+	request.Header.Set("Content-Type", "application/json") // Adjust as needed
+
+	return request, nil
+}
+
 func main() {
 	r := mux.NewRouter()
-
 	api := r.PathPrefix("/api/v1").Subrouter()
 	api.HandleFunc("", get).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("", post).Methods(http.MethodPost)
 	api.HandleFunc("", put).Methods(http.MethodPut)
 	api.HandleFunc("", delete).Methods(http.MethodDelete)
+	api.HandleFunc("/schedule", schedule).Methods(http.MethodGet)
 
 	search := r.PathPrefix("/search").Subrouter()
 	search.HandleFunc("", getSearch).Methods(http.MethodGet)
